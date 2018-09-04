@@ -1,0 +1,139 @@
+service: secure-static-s3-site
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  region: us-east-1
+  timeout: 30
+  custom:
+    stage: ${opt:stage, self:provider.stage}
+    region: ${opt:region, self:provider.region}
+
+
+plugins:
+  - serverless-plugin-optimize
+  - serverless-plugin-cloudfront-lambda-edge
+
+package:
+  individually: true
+
+functions:
+  auth:
+    description: "auth lambda"
+    labels: "auth"
+    handler: main.auth
+    memorySize: 128
+    timeout: 5
+    role: SecureS3SiteLambdaRole
+    lambdaAtEdge:
+       distribution: 'WebsiteDistribution'
+       eventType: 'viewer-request'
+       pathPattern: 'index.html'
+
+resources:
+   Resources:
+      WebsiteBucket:
+         Type: 'AWS::S3::Bucket'
+         Properties:
+            BucketName: '<static-site-bucket-name>'
+            AccessControl: 'PublicRead'
+            WebsiteConfiguration:
+               IndexDocument: 'index.html'
+               ErrorDocument: 'error.html'
+      WebsiteDistribution:
+         Type: 'AWS::CloudFront::Distribution'
+         Properties:
+            DistributionConfig:
+               DefaultCacheBehavior:
+                  TargetOriginId: 'WebsiteBucketOrigin'
+                  ViewerProtocolPolicy: 'redirect-to-https'
+                  DefaultTTL: 600 # ten minutes
+                  MaxTTL: 600 # ten minutes
+                  Compress: true
+                  ForwardedValues:
+                     QueryString: false
+                     Cookies:
+                        Forward: 'none'
+               CacheBehaviors:
+                  - TargetOriginId: 'WebsiteBucketOrigin'
+                    AllowedMethods:
+                      - "GET"
+                      - "HEAD"
+                    ViewerProtocolPolicy: 'redirect-to-https'
+                    DefaultTTL: 600 # ten minutes
+                    MaxTTL: 600 # ten minutes
+                    Compress: true
+                    PathPattern: 'index.html'
+                    ForwardedValues:
+                       QueryString: false
+                       Cookies:
+                          Forward: 'none'
+               DefaultRootObject: 'main.html'
+               Enabled: true
+               PriceClass: 'PriceClass_100'
+               HttpVersion: 'http2'
+               ViewerCertificate:
+                  CloudFrontDefaultCertificate: true
+               Origins:
+                  -
+                     Id: 'WebsiteBucketOrigin'
+                     DomainName: { 'Fn::GetAtt': [ 'WebsiteBucket', 'DomainName' ] }
+                     S3OriginConfig: {}
+
+      LambdaGetPermission:
+        Type: AWS::Lambda::Permission
+        Properties:
+          Action: lambda:GetFunction
+          FunctionName:
+            Ref: AuthLambdaFunction
+          Principal: events.amazonaws.com
+          SourceArn:
+            Fn::Join:
+              - ':'
+              -
+                - 'arn:aws:events'
+                - Ref: 'AWS::Region'
+                - Ref: 'AWS::AccountId'
+                - '*'
+        DependsOn:
+          - AuthLambdaFunction
+
+
+      SecureS3SiteLambdaRole:
+        Type: AWS::IAM::Role
+        Properties:
+          RoleName: SecureS3SiteLambdaRole
+          AssumeRolePolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Principal:
+                  Service:
+                    - lambda.amazonaws.com
+                Action: sts:AssumeRole
+              - Effect: Allow
+                Principal:
+                  Service:
+                    - edgelambda.amazonaws.com
+                Action: sts:AssumeRole
+          Policies:
+            - PolicyName: root
+              PolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                - Effect: Allow
+                  Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "logs:DescribeLogStreams"
+                  Resource: arn:aws:logs:*:*:*
+                - Effect: Allow
+                  Action:
+                  - "s3:PutObject"
+                  - "s3:PutObjectAcl"
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  Resource:
+                  - "arn:aws:s3:::<static-site-bucket-name>/*"
+

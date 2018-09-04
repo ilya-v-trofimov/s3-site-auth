@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://apis.google.com/js/platform.js?onload=loadAuth" async defer></script>
+</head>
+<body>
+
+<div id="signinBtn"></div>
+<div id="userData" style="visibility: hidden; display: none">
+    <span id="userName"></span><br /><a href="#" onclick="signOut('Bye bye!');">Sign out</a>
+</div>
+<iframe id="index" style="border:none; margin:0; padding:0; overflow:hidden; z-index:999999; width: 100vw; height: 90vh"></iframe>
+
+<script>
+
+    let GoogleAuth;
+
+    function loadAuth(){
+        gapi.load('client:auth2', initClient);
+    }
+
+    function initClient() {
+        gapi.client.init({
+            'clientId': '<enter your client id here>.apps.googleusercontent.com',
+            'scope': 'profile email'
+        }).then(function () {
+            GoogleAuth = gapi.auth2.getAuthInstance();
+            renderButton();
+        });
+    }
+
+    function renderButton(){
+        gapi.signin2.render('signinBtn', {
+            'scope': 'profile email',
+            'prompt': 'select_account',
+            'width': 240,
+            'height': 50,
+            'longtitle': true,
+            'theme': 'dark',
+            'onsuccess': signIn,
+            'onfailure': () => {}
+        });
+    }
+
+    function signIn(googleUser) {
+
+        const profile = googleUser.getBasicProfile();
+        console.log("ID: " + profile.getId());
+        console.log('Full Name: ' + profile.getName());
+        console.log('Given Name: ' + profile.getGivenName());
+        console.log('Family Name: ' + profile.getFamilyName());
+        console.log("Image URL: " + profile.getImageUrl());
+        console.log("Email: " + profile.getEmail());
+
+        document.getElementById('userName').innerText = profile.getEmail();
+        writeFrame('');
+        toggleElement('signinBtn', false);
+        toggleElement('userData', true);
+
+        const id_token = googleUser.getAuthResponse().id_token;
+        const req = new XMLHttpRequest();
+        const timestamp = +new Date;
+        const url = 'index.html?t=' + timestamp;
+        req.open('GET', url, true);
+        req.withCredentials = true;
+        req.setRequestHeader('authorization', 'Bearer ' + id_token);
+        req.setRequestHeader('Access-Control-Allow-Headers', 'authorization');
+        req.onreadystatechange = function () {
+            if (req.readyState === 4) {
+                if (req.status === 200){
+                    writeFrame(req.responseText);
+                } else if (req.status === 401){
+                    window.location.href = 'unauthorized.html';
+                } else if (req.status === 403){
+                    signOut(getForbiddenText(profile));
+                } else {
+                    writeFrame(req.responseText);
+                }
+            }
+        };
+
+        req.send();
+
+    }
+
+    function signOut(text) {
+        GoogleAuth.disconnect();
+        return GoogleAuth.signOut().then(() => {
+            //console.log('User signed out.');
+            document.getElementById('userName').innerText = '';
+            toggleElement('signinBtn', true);
+            toggleElement('userData', false);
+
+            writeFrame(text);
+        }).catch(err => {
+            console.log('Error while user signing out.');
+            writeFrame(err.message);
+        });
+    }
+
+    function toggleElement(name, toggle){
+        const btn = document.getElementById(name);
+        btn.style.visibility = toggle ? 'visible' : 'hidden';
+        btn.style.display = toggle ? 'block' : 'none';
+    }
+
+    function writeFrame(text){
+        const doc = document.getElementById("index").contentWindow.document;
+        doc.open();
+        doc.write(text);
+        doc.close();
+    }
+
+    function getForbiddenText(profile) {
+        return `
+<html>
+<head></head>
+<body>
+<h3>Can't let you in as ${profile.getEmail()}</h3>
+<h4>Please login with your OCTO's account!</h4>
+</body>
+</html>
+`
+    }
+
+</script>
+
+</body>
+</html>
