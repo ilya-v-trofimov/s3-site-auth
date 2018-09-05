@@ -6,6 +6,8 @@ This solution utilizes AWS Cloudfront + AWS Lambda@Edge solution. Please find de
 
 We also use Serverless framework to manage deployments to AWS.
 
+**PLEASE NOTE THAT ONLY `index.html` IS CONSIDERED AS SENSITIVE CONTENT AND PROTECTED WITH LAMBDA@EDGE VALIDATION**
+
 ## Authorization rules:
 Only Google users from email domain defined in main.js are allowed to browse a site secured with current solution.
 Feel free to adjust to your needs
