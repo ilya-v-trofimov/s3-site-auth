@@ -3,6 +3,7 @@ This project creates a template for a static website hosted on AWS S3 and secure
 This solution utilizes AWS Cloudfront + AWS Lambda@Edge solution. Please find details of the technology [here](https://docs.aws.amazon.com/lambda/latest/dg/lambda-edge.html)
 
 ![Cloudfront + Lambda@Edge](https://docs.aws.amazon.com/lambda/latest/dg/images/cloudfront-events-that-trigger-lambda-functions.png)    
+Picture: AWS
 
 We also use Serverless framework to manage deployments to AWS.
 
